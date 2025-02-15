@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BLE Button & Potentiometer Logger</title>
+</head>
+<body>
+    <button onclick="connectBLE()">Connect to BLE</button>
+    <ul id="locationList"></ul>
+
+    <script>
+        let bleDevice, bleServer, dataCharacteristic;
+        let locations = [];
+
+        async function connectBLE() {
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
+                });
+
+                bleServer = await bleDevice.gatt.connect();
+                const service = await bleServer.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
+                dataCharacteristic = await service.getCharacteristic('abcdef01-1234-5678-1234-56789abcdef0');
+
+                // Start notifications
+                await dataCharacteristic.startNotifications();
+                dataCharacteristic.addEventListener('characteristicvaluechanged', onDataReceived);
+                console.log("Connected and listening for button presses...");
+            } catch (error) {
+                console.error("BLE Connection Error:", error);
+            }
+        }
+
+        async function onDataReceived(event) {
+            let potValue = event.target.value.getUint16(0, true); // Read 2-byte potentiometer value
+            console.log("Potentiometer Value:", potValue);
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    let coords = {
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude,
+                        pot: potValue
+                    };
+                    locations.push(coords);
+                    updateLocationList(coords);
+                },
+                (error) => console.error("GPS Error:", error),
+                { enableHighAccuracy: true }
+            );
+        }
+
+        function updateLocationList(coords) {
+            let list = document.getElementById("locationList");
+            let listItem = document.createElement("li");
+            listItem.textContent = `Lat: ${coords.lat}, Lon: ${coords.lon}, Pot: ${coords.pot}`;
+            list.appendChild(listItem);
+        }
+    </script>
+</body>
+</html>
